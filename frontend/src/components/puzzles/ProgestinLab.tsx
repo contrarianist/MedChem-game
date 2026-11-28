@@ -121,41 +121,41 @@ export const ProgestinLab: React.FC<Props> = ({
 
   return (
     <div className="space-y-8">
-      <div className="rounded-2xl border border-cyan-500/30 bg-white dark:bg-slate-900/80 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+      <div className="lab-card p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-400 font-bold text-lg">
+          <div className="flex items-center gap-2 text-[#0D9488] font-heading font-bold text-lg">
             <Shield className="w-6 h-6" />
-            <span>🍼 اتاق نی‌نی کوچولو — اتاق دکتر ماریا، همسر ارول (پروژسترون)</span>
+            <span>اتاق نی‌نی کوچولو — اتاق دکتر ماریا، همسر ارول (پروژسترون)</span>
           </div>
-          <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm mt-1 leading-6">
+          <p className="text-[#52525B] text-xs sm:text-sm mt-1 leading-6">
             بچه دکتر ماریا و ارول به‌تازگی به دنیا اومده و ماریا مخفیانه دنبال راه فرار از دست پروژه اهریمن می‌گرده...
           </p>
         </div>
         <button
           type="button"
           onClick={onBackToMap}
-          className="self-start md:self-center rounded-xl border border-slate-300 dark:border-slate-600 hover:border-cyan-500 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 transition"
+          className="btn-tactile btn-tactile-surface self-start md:self-center px-4 py-2 text-xs"
         >
           بازگشت به نقشه کارخانه
         </button>
       </div>
 
       {/* گام ۱: رمز تاریخ تولد بچه */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/75 p-6 space-y-5 shadow-sm">
+      <div className="lab-card p-6 space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            {codeSolved ? <Unlock className="w-5 h-5 text-emerald-500" /> : <Lock className="w-5 h-5 text-amber-500" />}
+          <h3 className="font-heading font-bold text-base text-[#18181B] flex items-center gap-2">
+            {codeSolved ? <Unlock className="w-5 h-5 text-[#16A34A]" /> : <Lock className="w-5 h-5 text-[#F59E0B]" />}
             <span>گام {toPersianDigits(1)}: رمز ورود به اتاق (تاریخ تولد بچه ماریا و ارول!)</span>
           </h3>
           <div
             dir="ltr"
-            className="font-mono text-xs bg-slate-100 dark:bg-slate-950 border border-cyan-500/40 px-3 py-1.5 rounded-lg text-cyan-700 dark:text-cyan-300 font-bold"
+            className="lab-badge px-3 py-1.5 font-mono text-xs bg-[#EFECE6] text-[#0D9488] metric-mono"
           >
             تاریخ تولد: {toPersianDigits(202)}{toPersianDigits(sumDigits(checks.low_androgen))} / {toPersianDigits(sumDigits(checks.half_life))} / {toPersianDigits(sumDigits(checks.bioavailability))}
           </div>
         </div>
 
-        <p className="text-xs text-slate-600 dark:text-slate-300 leading-6">
+        <p className="text-xs text-[#52525B] leading-6">
           تاریخ تولد بچه‌شونو رمز ورود به اتاق گذاشتن! برای هر ویژگی، ساختارهای درست رو انتخاب کن تا جمع اعدادشون رمز تاریخ تولد رو بسازه (اعدادی که انتخاب نکنی صفر محسوب می‌شن):
         </p>
 
@@ -182,9 +182,9 @@ export const ProgestinLab: React.FC<Props> = ({
           ).map((row) => (
             <div
               key={row.key}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950/70 px-4 py-3"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-[6px] border-2 border-[#18181B] bg-[#EFECE6] px-4 py-3"
             >
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{row.label}</span>
+              <span className="text-xs font-bold text-[#18181B]">{row.label}</span>
               <div className="flex items-center gap-2">
                 {['1', '2', '3', '4'].map((num) => {
                   const active = checks[row.key].includes(num);
@@ -194,10 +194,8 @@ export const ProgestinLab: React.FC<Props> = ({
                       type="button"
                       disabled={codeSolved}
                       onClick={() => toggleCheck(row.key, num)}
-                      className={`w-9 h-9 rounded-lg text-sm font-bold border transition ${
-                        active
-                          ? 'border-cyan-500 bg-cyan-500 text-slate-950'
-                          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-cyan-400'
+                      className={`w-9 h-9 rounded-[6px] text-sm font-mono font-bold border-2 border-[#18181B] transition ${
+                        active ? 'bg-[#0D9488] text-white' : 'bg-[#FFFFFF] text-[#18181B] hover:bg-[#F7F5F0]'
                       }`}
                     >
                       {toPersianDigits(num)}
@@ -212,20 +210,18 @@ export const ProgestinLab: React.FC<Props> = ({
         <ProgressiveHintBox
           solved={codeSolved}
           hints={[
-            'اکسیم روی C3، استرهای محافظت‌کننده و متیل روی C6 نیمه‌عمر و پایداری را افزایش می‌دهند.',
-            'برای فراهمی زیستی ساختارهای ۳ و ۴ (جمع = ۷)، برای نیمه‌عمر ۲ و ۳ و ۴ (جمع = ۹) و برای کاهش آندروژنیسیته ۱ و ۲ و ۳ (جمع = ۶ ← سال ۲۰۲۶) درست هستند.',
+            'به نقش گروه‌های محافظ روی کربن C3 (مانند اکسیم یا استر) و استخلاف‌های حلقه B در محافظت در برابر متابولیسم کبدی و افزایش نیمه‌عمر دقت کن.',
+            'مشتقات پرگنان و ساختارهای دارای اکسیم یا استخلاف‌های کاهنده میل به گیرنده آندروژن، اثر آندروژنی کمتری دارند.',
           ]}
         />
 
         {codeFeedback && (
           <div
-            className={`rounded-xl border p-3 text-sm flex items-start gap-2 ${
-              codeFeedback.ok
-                ? 'border-emerald-500/40 bg-emerald-950/85 text-emerald-200'
-                : 'border-rose-500/40 bg-rose-950/85 text-rose-200'
+            className={`rounded-[6px] border-2 border-[#18181B] p-3 text-sm font-bold flex items-start gap-2 ${
+              codeFeedback.ok ? 'bg-[#DCFCE7] text-[#18181B]' : 'bg-[#FFE4E6] text-[#E11D48]'
             }`}
           >
-            {codeFeedback.ok ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertTriangle className="w-5 h-5 shrink-0" />}
+            {codeFeedback.ok ? <CheckCircle2 className="w-5 h-5 text-[#16A34A] shrink-0" /> : <AlertTriangle className="w-5 h-5 text-[#E11D48] shrink-0" />}
             <span>{codeFeedback.text}</span>
           </div>
         )}
@@ -241,7 +237,7 @@ export const ProgestinLab: React.FC<Props> = ({
                 !checks.low_androgen.length
               }
               onClick={handleCodeSubmit}
-              className="rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-slate-950 font-bold px-5 py-2.5 text-sm transition"
+              className="btn-tactile btn-tactile-primary px-5 py-2.5 text-sm"
             >
               {codeLoading ? 'در حال بررسی رمز...' : 'وارد کردن تاریخ تولد و ورود به اتاق'}
             </button>
@@ -251,19 +247,17 @@ export const ProgestinLab: React.FC<Props> = ({
 
       {/* گام ۲: تخته تحقیقات دکتر ماریا */}
       <div
-        className={`rounded-2xl border p-6 space-y-5 transition ${
-          codeSolved
-            ? 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/75 shadow-sm'
-            : 'border-slate-200 dark:border-slate-800 opacity-60 pointer-events-none'
+        className={`lab-card p-6 space-y-5 transition ${
+          codeSolved ? '' : 'opacity-60 pointer-events-none'
         }`}
       >
-        <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Wrench className="w-5 h-5 text-cyan-500" />
+        <h3 className="font-heading font-bold text-base text-[#18181B] flex items-center gap-2">
+          <Wrench className="w-5 h-5 text-[#0D9488]" />
           <span>گام {toPersianDigits(2)}: تخته تحقیقات دکتر ماریا</span>
         </h3>
 
-        <div className="rounded-xl border border-purple-500/30 bg-purple-50/70 dark:bg-purple-950/20 p-4 text-xs text-slate-700 dark:text-slate-200 space-y-1.5">
-          <div className="font-bold text-purple-800 dark:text-purple-300">
+        <div className="rounded-[6px] border-2 border-[#18181B] bg-[#EFECE6] p-4 text-xs text-[#18181B] space-y-1.5">
+          <div className="font-bold text-[#0D9488]">
             روی تخته ۳ تا هدف نوشته شده که باید روی میز کار عملی کنی:
           </div>
           <ul className="list-disc list-inside space-y-1">
@@ -282,24 +276,20 @@ export const ProgestinLab: React.FC<Props> = ({
 
         {designFeedback && (
           <div
-            className={`rounded-xl border p-3 text-sm flex items-start gap-2 ${
-              designFeedback.ok
-                ? 'border-emerald-500/40 bg-emerald-950/85 text-emerald-200'
-                : 'border-rose-500/40 bg-rose-950/85 text-rose-200'
+            className={`rounded-[6px] border-2 border-[#18181B] p-3 text-sm font-bold flex items-start gap-2 ${
+              designFeedback.ok ? 'bg-[#DCFCE7] text-[#18181B]' : 'bg-[#FFE4E6] text-[#E11D48]'
             }`}
           >
-            {designFeedback.ok ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertTriangle className="w-5 h-5 shrink-0" />}
+            {designFeedback.ok ? <CheckCircle2 className="w-5 h-5 text-[#16A34A] shrink-0" /> : <AlertTriangle className="w-5 h-5 text-[#E11D48] shrink-0" />}
             <span>{designFeedback.text}</span>
           </div>
         )}
 
         {designSolved && (
-          <div className="rounded-2xl border border-emerald-500/40 bg-emerald-50/70 dark:bg-emerald-950/25 p-4 flex items-start gap-3">
-            <FlaskRound className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-            <div className="text-xs leading-6 text-slate-700 dark:text-slate-200">
-              <strong className="text-emerald-800 dark:text-emerald-300 block mb-0.5">
-                شیشه مخفی روی قفسه مواد دکتر ماریا پیدا شد!
-              </strong>
+          <div className="rounded-[6px] border-2 border-[#18181B] bg-[#DCFCE7] p-4 flex items-start gap-3">
+            <FlaskRound className="w-6 h-6 text-[#16A34A] shrink-0 mt-0.5" />
+            <div className="text-xs leading-6 text-[#18181B]">
+              <strong className="block mb-0.5">شیشه مخفی روی قفسه مواد دکتر ماریا پیدا شد!</strong>
               روی برچسب شیشه با خط ریز نوشته شده: <em>«برای فرار از خواص پروژسترونی اهریمن»</em> — پس <strong>اهریمن خاصیت پروژسترونی هم داره!</strong>
             </div>
           </div>
@@ -310,7 +300,7 @@ export const ProgestinLab: React.FC<Props> = ({
             <button
               type="button"
               onClick={onBackToMap}
-              className="rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-6 py-2.5 text-sm transition"
+              className="btn-tactile btn-tactile-emerald px-6 py-2.5 text-sm"
             >
               ذخیره سرنخ چهارم (خاصیت پروژسترونی) و بازگشت ←
             </button>
@@ -319,7 +309,7 @@ export const ProgestinLab: React.FC<Props> = ({
               type="button"
               disabled={designLoading || selectedMods.length === 0}
               onClick={handleDesignSubmit}
-              className="rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-slate-950 font-bold px-6 py-2.5 text-sm transition"
+              className="btn-tactile btn-tactile-primary px-6 py-2.5 text-sm"
             >
               {designLoading ? 'در حال بررسی ساختار...' : 'ثبت ساختار طراحی‌شده'}
             </button>
