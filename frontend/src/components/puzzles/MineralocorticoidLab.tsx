@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { SteroidMoleculeSVG } from '../molecules/SteroidMoleculeSVG';
 import { MoleculeStructureCard } from '../molecules/MoleculeStructureCard';
+import { SteroidSandbox } from '../molecules/SteroidSandbox';
 import { ProgressiveHintBox } from './ProgressiveHintBox';
 import { usePuzzleTimer } from '../../utils/usePuzzleTimer';
 import { deterministicShuffle } from '../../utils/shuffle';
@@ -91,11 +92,6 @@ const ROUTE_COMPOUNDS: RouteCompound[] = [
   },
 ];
 
-// ساختارهای نامه کژتاب به زهتاب (مقایسه مینرالوکورتیکوئید پایه و ترکیب پرفشار با 9α-F و 18-CHO)
-const KAZHTAB_LETTER_DOC_SMILES = 'C[C@]12CCC(=O)C=C1CC[C@@H]3[C@@H]2CC[C@]4(C)[C@H]3CC[C@@H]4C(=O)CO';
-const KAZHTAB_LETTER_HIGH_MC_SMILES =
-  'C[C@H]1C[C@H]2[C@@H]3CC[C@@H](C(=O)CO)[C@@]3(C=O)C[C@H](O)[C@@]2(F)[C@@]4(C)CCC(=O)C=C14';
-
 type BucketKey = 'systemic' | 'topical' | 'inhalation';
 
 interface Props {
@@ -128,6 +124,11 @@ export const MineralocorticoidLab: React.FC<Props> = ({
   const [arrowFeedback, setArrowFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [arrowLoading, setArrowLoading] = useState(false);
 
+  // گام ۲ تعاملی: کاهش اثر مینرال ترکیب کژتاب روی میز کار
+  const [letterTokens, setLetterTokens] = useState<string[]>(routesSolved ? ['mineral_reduced'] : []);
+  const [letterSolved, setLetterSolved] = useState<boolean>(routesSolved);
+  const [letterFeedback, setLetterFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+
   const [phoneAnswered, setPhoneAnswered] = useState(routesSolved);
   const [buckets, setBuckets] = useState<Record<BucketKey, string[]>>(
     routesSolved
@@ -135,7 +136,7 @@ export const MineralocorticoidLab: React.FC<Props> = ({
       : { systemic: [], topical: [], inhalation: [] }
   );
   const [selectedChip, setSelectedChip] = useState<string | null>(null);
-  const routeTimer = usePuzzleTimer(arrowsSolved && phoneAnswered, routesSolved);
+  const routeTimer = usePuzzleTimer(arrowsSolved && letterSolved && phoneAnswered, routesSolved);
   const [routeFeedback, setRouteFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
 
@@ -155,6 +156,21 @@ export const MineralocorticoidLab: React.FC<Props> = ({
       setArrowFeedback({ ok: false, text: err instanceof Error ? err.message : 'ثبت پاسخ ناموفق بود.' });
     } finally {
       setArrowLoading(false);
+    }
+  };
+
+  const handleVerifyLetterReduction = () => {
+    if (letterTokens.includes('mineral_reduced')) {
+      setLetterSolved(true);
+      setLetterFeedback({
+        ok: true,
+        text: 'آفرین! اثر مینرالوکورتیکوئیدی ترکیب کژتاب با حفظ هسته ضدالتهابی کاهش یافت. ناگهان تلفن میز زهتاب زنگ می‌خورد...',
+      });
+    } else {
+      setLetterFeedback({
+        ok: false,
+        text: 'اثر مینرالوکورتیکوئیدی هنوز بالاست یا هسته فعال ضدالتهابی (11β-OH / کتول) آسیب دیده است. روی میز کار ساختار را اصلاح کن و دوباره بررسی کن.',
+      });
     }
   };
 
@@ -198,28 +214,28 @@ export const MineralocorticoidLab: React.FC<Props> = ({
 
   return (
     <div className="space-y-8">
-      <div className="rounded-2xl border border-cyan-500/30 bg-white dark:bg-slate-900/80 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+      <div className="lab-card p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-cyan-600 dark:text-cyan-400 font-bold text-lg">
+          <div className="flex items-center gap-2 text-[#0D9488] font-heading font-bold text-lg">
             <Droplets className="w-6 h-6" />
-            <span>🧂 اتاق گوله نمک — اتاق پروفسور زهتاب (مینرالوکورتیکوئیدها)</span>
+            <span>اتاق گوله نمک — اتاق پروفسور زهتاب (مینرالوکورتیکوئیدها)</span>
           </div>
-          <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm mt-1 leading-6">
+          <p className="text-[#52525B] text-xs sm:text-sm mt-1 leading-6">
             پروفسور زهتاب، برادر پروفسور کژتاب، برخلاف برادرش رفت سراغ مینرالوکورتیکوئیدها و کنترل آب و نمک بدن...
           </p>
         </div>
         <button
           type="button"
           onClick={onBackToMap}
-          className="self-start md:self-center rounded-xl border border-slate-300 dark:border-slate-600 hover:border-cyan-500 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 transition"
+          className="btn-tactile btn-tactile-surface self-start md:self-center px-4 py-2 text-xs"
         >
           بازگشت به نقشه کارخانه
         </button>
       </div>
 
-      {/* گام ۱: مقایسه متیل‌پردنیزولون (۱) نسبت به پردنیزولون (۲) مطابق PDF */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/75 p-6 space-y-5 shadow-sm">
-        <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
+      {/* گام ۱: مقایسه متیل‌پردنیزولون (۱) نسبت به پردنیزولون (۲) */}
+      <div className="lab-card p-6 space-y-5">
+        <h3 className="font-heading font-bold text-base text-[#18181B]">
           گام {toPersianDigits(1)}: برای ورود به اتاق، این دو ساختار رو با هم مقایسه کن و فلش‌هاشونو بزن
         </h3>
 
@@ -243,17 +259,17 @@ export const MineralocorticoidLab: React.FC<Props> = ({
             { key: 'half_life' as const, label: 'نیمه‌عمر ترکیب ۱ نسبت به ۲' },
             { key: 'mineralocorticoid' as const, label: 'اثر مینرالوکورتیکوئید ترکیب ۱ نسبت به ۲' },
           ].map((item) => (
-            <div key={item.key} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#081220] p-4 space-y-3">
-              <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">{item.label}</div>
+            <div key={item.key} className="rounded-[8px] border-2 border-[#18181B] bg-[#EFECE6] p-4 space-y-3">
+              <div className="text-xs font-bold text-[#18181B]">{item.label}</div>
               <div className="flex gap-2">
                 <button
                   type="button"
                   disabled={arrowsSolved}
                   onClick={() => setArrows((p) => ({ ...p, [item.key]: 'up' }))}
-                  className={`flex-1 py-2 rounded-lg text-xs font-bold border flex items-center justify-center gap-1 transition ${
+                  className={`flex-1 py-2 rounded-[6px] text-xs font-bold border-2 border-[#18181B] flex items-center justify-center gap-1 transition ${
                     arrows[item.key] === 'up'
-                      ? 'border-emerald-500 bg-emerald-500/20 text-emerald-700 dark:text-emerald-200'
-                      : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/60 text-slate-600 dark:text-slate-400'
+                      ? 'bg-[#16A34A] text-white'
+                      : 'bg-[#FFFFFF] text-[#18181B]'
                   }`}
                 >
                   <ArrowUp className="w-4 h-4" /> افزایش (↑)
@@ -262,10 +278,10 @@ export const MineralocorticoidLab: React.FC<Props> = ({
                   type="button"
                   disabled={arrowsSolved}
                   onClick={() => setArrows((p) => ({ ...p, [item.key]: 'down' }))}
-                  className={`flex-1 py-2 rounded-lg text-xs font-bold border flex items-center justify-center gap-1 transition ${
+                  className={`flex-1 py-2 rounded-[6px] text-xs font-bold border-2 border-[#18181B] flex items-center justify-center gap-1 transition ${
                     arrows[item.key] === 'down'
-                      ? 'border-rose-500 bg-rose-500/20 text-rose-700 dark:text-rose-200'
-                      : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/60 text-slate-600 dark:text-slate-400'
+                      ? 'bg-[#E11D48] text-white'
+                      : 'bg-[#FFFFFF] text-[#18181B]'
                   }`}
                 >
                   <ArrowDown className="w-4 h-4" /> کاهش (↓)
@@ -278,20 +294,18 @@ export const MineralocorticoidLab: React.FC<Props> = ({
         <ProgressiveHintBox
           solved={arrowsSolved}
           hints={[
-            'هر دو ساختار پیوند دوگانه Δ1 دارند؛ تفاوت اصلی، افزودن گروه متیل 6α روی حلقه B در ساختار ۱ است.',
-            'افزودن متیل 6α اثر ضدالتهابی و نیمه‌عمر را بیشتر می‌کند و هم‌زمان اثر مینرالوکورتیکوئیدی (احتباس سدیم) را کاهش می‌دهد.',
+            'تفاوت اصلی این دو ساختار را روی حلقه B پیدا کن و اثر آن را بر متابولیسم و انتخاب‌پذیری گیرنده بسنج.',
+            'بررسی کن افزودن یک استخلاف آلکیلی در حلقه B چه تغییری در نیمه‌عمر، فعالیت ضدالتهابی و احتباس سدیم ایجاد می‌کند.',
           ]}
         />
 
         {arrowFeedback && (
           <div
-            className={`rounded-xl border p-3 text-sm flex items-start gap-2 ${
-              arrowFeedback.ok
-                ? 'border-emerald-500/40 bg-emerald-950/85 text-emerald-200'
-                : 'border-rose-500/40 bg-rose-950/85 text-rose-200'
+            className={`rounded-[6px] border-2 border-[#18181B] p-3 text-sm font-bold flex items-start gap-2 ${
+              arrowFeedback.ok ? 'bg-[#DCFCE7] text-[#18181B]' : 'bg-[#FFE4E6] text-[#E11D48]'
             }`}
           >
-            {arrowFeedback.ok ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertTriangle className="w-5 h-5 shrink-0" />}
+            {arrowFeedback.ok ? <CheckCircle2 className="w-5 h-5 text-[#16A34A] shrink-0" /> : <AlertTriangle className="w-5 h-5 text-[#E11D48] shrink-0" />}
             <span>{arrowFeedback.text}</span>
           </div>
         )}
@@ -302,7 +316,7 @@ export const MineralocorticoidLab: React.FC<Props> = ({
               type="button"
               disabled={arrowLoading || !arrows.anti_inflammatory || !arrows.half_life || !arrows.mineralocorticoid}
               onClick={handleArrowSubmit}
-              className="rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-slate-950 font-bold px-5 py-2.5 text-sm transition"
+              className="btn-tactile btn-tactile-primary px-5 py-2.5 text-sm"
             >
               {arrowLoading ? 'در حال بررسی...' : 'باز کردن در اتاق گوله نمک'}
             </button>
@@ -310,99 +324,120 @@ export const MineralocorticoidLab: React.FC<Props> = ({
         )}
       </div>
 
-      {/* گام ۲ (نامه کژتاب + دو ساختار پیوست نامه) و زنگ خوردن تلفن زهتاب */}
+      {/* گام ۲ (تعاملی): نامه کژتاب به زهتاب — اصلاح ساختار برای کاهش اثر مینرال */}
       {arrowsSolved && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-amber-500/40 bg-amber-50/70 dark:bg-amber-950/20 p-5 space-y-4 shadow-sm">
-            <div className="flex items-center gap-2 text-xs font-extrabold text-amber-800 dark:text-amber-300">
-              <ScrollText className="w-4 h-4" />
-              <span>نامه پروفسور کژتاب روی میز زهتاب</span>
+          <div className="lab-card p-6 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-heading font-bold text-[#18181B]">
+              <ScrollText className="w-5 h-5 text-[#F59E0B]" />
+              <span>گام {toPersianDigits(2)}: نامه پروفسور کژتاب روی میز زهتاب</span>
             </div>
-            <p className="text-xs leading-7 text-slate-700 dark:text-slate-200 italic">
+            <div className="rounded-[6px] border-2 border-[#18181B] bg-[#FEF3C7] p-3.5 text-xs leading-7 text-[#18181B]">
               «زهتاب جان، می‌دونم از من دلخوری. راست می‌گی، من اشتباه کردم رفتم سراغ گلوکو... ولی الان فرصت ندارم حرفامو بزنم. یه چیزی می‌خوام ازت: <strong>اثر مینرال ترکیبم رو کم کن!</strong>»
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <MoleculeStructureCard
-                smiles={KAZHTAB_LETTER_DOC_SMILES}
-                label="ساختار پایه مینرالوکورتیکوئید (بدون 11β-OH و 17α-OH)"
-                compact
-              />
-              <MoleculeStructureCard
-                smiles={KAZHTAB_LETTER_HIGH_MC_SMILES}
-                label="ترکیب ارسالی کژتاب (دارای 9α-F و آلدهید C18 با اثر مینرال شدید)"
-                compact
-              />
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              نکته آموزشی: با افزودن استخلاف روی C16 یا حذف 9α-F/آلدهید C18 (قابل تست در «میز کار مولکول‌سازی») اثر احتباس آب و نمک به حداقل می‌رسد.
-            </p>
-          </div>
 
-          <div
-            className={`rounded-2xl border p-5 space-y-3 shadow-sm transition ${
-              phoneAnswered
-                ? 'border-emerald-500/40 bg-emerald-50/60 dark:bg-emerald-950/20'
-                : 'border-rose-500/50 bg-rose-50/80 dark:bg-rose-950/30 animate-pulse'
-            }`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-xs font-extrabold text-rose-700 dark:text-rose-300">
-                <PhoneCall className="w-4 h-4" />
-                <span>{phoneAnswered ? 'تماس تلفنی شنود شد!' : 'تلفن میز زهتاب داره زنگ می‌خوره!'}</span>
+            <SteroidSandbox
+              mode="mineral_reduce"
+              disabled={!arrowsSolved}
+              solved={letterSolved}
+              onTokensChange={setLetterTokens}
+            />
+
+            <ProgressiveHintBox
+              solved={letterSolved}
+              hints={[
+                'اتم فلوئور در موقعیت 9α هم قدرت گلوکوکورتیکوئیدی و هم احتباس سدیم را به‌شدت بالا می‌برد.',
+                'فکر کن چه استخلافی روی حلقه D (یا حذف کدام اتم) می‌تواند اثر مینرالوکورتیکوئیدی را بدون از بین بردن خاصیت ضدالتهابی مهار کند.',
+              ]}
+            />
+
+            {letterFeedback && (
+              <div
+                className={`rounded-[6px] border-2 border-[#18181B] p-3 text-xs sm:text-sm font-bold flex items-start gap-2 ${
+                  letterFeedback.ok ? 'bg-[#DCFCE7] text-[#18181B]' : 'bg-[#FFE4E6] text-[#E11D48]'
+                }`}
+              >
+                {letterFeedback.ok ? <CheckCircle2 className="w-5 h-5 text-[#16A34A] shrink-0" /> : <AlertTriangle className="w-5 h-5 text-[#E11D48] shrink-0" />}
+                <span>{letterFeedback.text}</span>
               </div>
-              {!phoneAnswered && (
+            )}
+
+            {!letterSolved && (
+              <div className="flex justify-end">
                 <button
                   type="button"
-                  onClick={() => setPhoneAnswered(true)}
-                  className="rounded-xl bg-rose-500 hover:bg-rose-400 text-white font-bold px-3.5 py-1.5 text-xs shadow"
+                  onClick={handleVerifyLetterReduction}
+                  className="btn-tactile btn-tactile-primary px-5 py-2.5 text-sm"
                 >
-                  برداشتن گوشی 📞
+                  ثبت اصلاح ساختار و بررسی اثر مینرال
                 </button>
-              )}
-            </div>
-            {phoneAnswered ? (
-              <p className="text-xs leading-7 text-slate-700 dark:text-slate-200">
-                صدای ناشناس پشت خط: <strong>«قراره اهریمن رو موضعی بسازیم...»</strong>
-                <br />
-                <span className="text-cyan-700 dark:text-cyan-300 font-semibold">
-                  🎧 همکار پشت بی‌سیم: یعنی دکتر ارول نمی‌خواد کل بدن رو درگیر کنه، فقط یه نقطه خاص! توی چرک‌نویسای دکتر ترکیبات رو جدا کن تا موضعی‌ها رو پیدا کنی.
-                </span>
-              </p>
-            ) : (
-              <p className="text-xs text-slate-600 dark:text-slate-300">
-                زود گوشی رو بردار و ببین کی پشت خطه!
-              </p>
+              </div>
             )}
           </div>
+
+          {letterSolved && (
+            <div
+              className={`lab-card p-5 space-y-3 transition ${
+                phoneAnswered ? 'bg-[#DCFCE7]' : 'bg-[#FFE4E6]'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-extrabold text-[#E11D48]">
+                  <PhoneCall className="w-4 h-4" />
+                  <span>{phoneAnswered ? 'تماس تلفنی شنود شد!' : 'تلفن میز زهتاب داره زنگ می‌خوره!'}</span>
+                </div>
+                {!phoneAnswered && (
+                  <button
+                    type="button"
+                    onClick={() => setPhoneAnswered(true)}
+                    className="btn-tactile btn-tactile-crimson px-3.5 py-1.5 text-xs"
+                  >
+                    برداشتن گوشی 📞
+                  </button>
+                )}
+              </div>
+              {phoneAnswered ? (
+                <p className="text-xs leading-7 text-[#18181B]">
+                  صدای ناشناس پشت خط: <strong>«قراره اهریمن رو موضعی بسازیم...»</strong>
+                  <br />
+                  <span className="text-[#0D9488] font-bold">
+                    همکار پشت بی‌سیم: یعنی دکتر ارول نمی‌خواد کل بدن رو درگیر کنه، فقط یه نقطه خاص! توی چرک‌نویسای دکتر ترکیبات رو جدا کن تا موضعی‌ها رو پیدا کنی.
+                  </span>
+                </p>
+              ) : (
+                <p className="text-xs text-[#52525B]">
+                  زود گوشی رو بردار و ببین کی پشت خطه!
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* گام ۳: چرک‌نویس ۹ ترکیب دقیقاً مطابق PDF با ترتیب تصادفی */}
+      {/* گام ۳: چرک‌نویس ۹ ترکیب */}
       <div
-        className={`rounded-2xl border p-6 space-y-5 transition ${
-          arrowsSolved && phoneAnswered
-            ? 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/75 shadow-sm'
-            : 'border-slate-200 dark:border-slate-800 opacity-60 pointer-events-none'
+        className={`lab-card p-6 space-y-5 transition ${
+          arrowsSolved && letterSolved && phoneAnswered ? '' : 'opacity-60 pointer-events-none'
         }`}
       >
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <Layers className="w-5 h-5 text-cyan-500" />
+          <h3 className="font-heading font-bold text-base text-[#18181B] flex items-center gap-2">
+            <Layers className="w-5 h-5 text-[#0D9488]" />
             <span>گام {toPersianDigits(3)}: جداسازی چرک‌نویس ترکیبات زهتاب (سیستمیک، موضعی، استنشاقی)</span>
           </h3>
           {!routesSolved && assignedIds.length > 0 && (
             <button
               type="button"
               onClick={() => setBuckets({ systemic: [], topical: [], inhalation: [] })}
-              className="text-xs text-slate-500 hover:text-rose-500 flex items-center gap-1"
+              className="btn-tactile btn-tactile-surface px-3 py-1 text-xs"
             >
               <RotateCcw className="w-3.5 h-3.5" /> بازنشانی سبدها
             </button>
           )}
         </div>
 
-        <p className="text-xs text-slate-600 dark:text-slate-300 leading-6">
-          هر کدوم از {toPersianDigits(9)} ساختار زیر رو با <strong>Drag & Drop</strong> (یا کلیک روی کارت و سپس سبد مقصد) توی دسته خودش بذار. برای دیدن جزئیات دقیق‌تر می‌تونی روی آیکون بزرگ‌نمایی کلیک کنی:
+        <p className="text-xs text-[#52525B] leading-6">
+          هر کدوم از {toPersianDigits(9)} ساختار زیر رو با <strong>Drag & Drop</strong> (یا کلیک روی کارت و سپس سبد مقصد) توی دسته خودش بذار:
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -414,10 +449,8 @@ export const MineralocorticoidLab: React.FC<Props> = ({
                 draggable={!routesSolved}
                 onDragStart={(e) => e.dataTransfer.setData('text/plain', comp.id)}
                 onClick={() => setSelectedChip(selectedChip === comp.id ? null : comp.id)}
-                className={`rounded-xl transition cursor-pointer ${
-                  selectedChip === comp.id
-                    ? 'ring-2 ring-cyan-500 shadow-md'
-                    : 'hover:ring-1 hover:ring-cyan-400/60'
+                className={`rounded-[8px] transition cursor-pointer ${
+                  selectedChip === comp.id ? 'ring-2 ring-[#0D9488]' : ''
                 }`}
               >
                 <MoleculeStructureCard
@@ -435,9 +468,9 @@ export const MineralocorticoidLab: React.FC<Props> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
           {(
             [
-              { key: 'systemic', title: 'سبد ۱: سیستمیک (خوراکی/تزریقی)', color: 'border-sky-500/40' },
-              { key: 'topical', title: 'سبد ۲: موضعی (پوستی)', color: 'border-amber-500/40' },
-              { key: 'inhalation', title: 'سبد ۳: استنشاقی (تنفسی)', color: 'border-purple-500/40' },
+              { key: 'systemic', title: 'سبد ۱: سیستمیک (خوراکی/تزریقی)' },
+              { key: 'topical', title: 'سبد ۲: موضعی (پوستی)' },
+              { key: 'inhalation', title: 'سبد ۳: استنشاقی (تنفسی)' },
             ] as const
           ).map((b) => (
             <div
@@ -451,9 +484,9 @@ export const MineralocorticoidLab: React.FC<Props> = ({
               onClick={() => {
                 if (selectedChip) assignToBucket(b.key, selectedChip);
               }}
-              className={`min-h-[170px] rounded-2xl border-2 border-dashed ${b.color} bg-slate-100/70 dark:bg-slate-950/70 p-4 space-y-2.5`}
+              className="min-h-[170px] rounded-[8px] border-2 border-dashed border-[#71717A] bg-[#EFECE6] p-4 space-y-2.5"
             >
-              <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{b.title}</div>
+              <div className="text-xs font-bold text-[#18181B]">{b.title}</div>
               <div className="space-y-2">
                 {buckets[b.key].map((id) => {
                   const item = ROUTE_COMPOUNDS.find((c) => c.id === id)!;
@@ -464,25 +497,23 @@ export const MineralocorticoidLab: React.FC<Props> = ({
                         e.stopPropagation();
                         removeFromBucket(b.key, id);
                       }}
-                      className="rounded-lg bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 p-2 text-xs text-slate-800 dark:text-slate-100 cursor-pointer hover:border-rose-400 space-y-1"
+                      className="rounded-[6px] bg-[#FFFFFF] border-2 border-[#18181B] p-2 text-xs text-[#18181B] cursor-pointer space-y-1"
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-bold">
                           {item.blindLabel}
                           {routesSolved ? ` — ${item.revealedName}` : ''}
                         </span>
-                        {!routesSolved && <span className="text-rose-500 text-xs font-bold">×</span>}
+                        {!routesSolved && <span className="text-[#E11D48] text-xs font-bold">×</span>}
                       </div>
                       {routesSolved && (
-                        <div className="text-[11px] text-emerald-700 dark:text-emerald-300">
-                          {item.revealedNote}
-                        </div>
+                        <div className="text-[11px] text-[#16A34A]">{item.revealedNote}</div>
                       )}
                     </div>
                   );
                 })}
                 {buckets[b.key].length === 0 && (
-                  <div className="text-[11px] text-slate-400 pt-4 text-center">
+                  <div className="text-[11px] text-[#52525B] pt-4 text-center">
                     ساختارها را اینجا رها کن
                   </div>
                 )}
@@ -493,22 +524,20 @@ export const MineralocorticoidLab: React.FC<Props> = ({
 
         <ProgressiveHintBox
           solved={routesSolved}
-          disabled={!arrowsSolved || !phoneAnswered}
+          disabled={!arrowsSolved || !letterSolved || !phoneAnswered}
           hints={[
-            'ترکیباتی که هیدروکسیل‌های آزاد 17α و C21 بدون استر/کتال لیپوفیل دارند (۱، ۵ و ۸) برای مصرف سیستمیک هستند.',
-            'استونیدها و کتال سیکلوپنتیلیدن و 7α-کلر دی‌پروپیونات (۲، ۶ و ۷) موضعی‌اند؛ بکلومتازون دی‌پروپیونات (۳)، بودزوناید (۴) و فلوتیکازون تیواستر (۹) استنشاقی هستند.',
+            'تفاوت اصلی مسیرهای تجویز در میزان لیپوفیلیته، نوع استرها/کتال‌ها روی حلقه D و سرعت غیرفعال‌سازی کبدی است.',
+            'ساختارهای با هیدروکسیل آزاد و قطبی‌تر برای مصرف سیستمیک، استونیدها/کتال‌های حلقوی و دی‌استرهای پوستی برای موضعی، و استال‌های نامتقارن یا تیواسترهای با کلیرانس سریع برای استنشاقی به کار می‌روند.',
           ]}
         />
 
         {routeFeedback && (
           <div
-            className={`rounded-xl border p-3 text-sm flex items-start gap-2 ${
-              routeFeedback.ok
-                ? 'border-emerald-500/40 bg-emerald-950/85 text-emerald-200'
-                : 'border-rose-500/40 bg-rose-950/85 text-rose-200'
+            className={`rounded-[6px] border-2 border-[#18181B] p-3 text-sm font-bold flex items-start gap-2 ${
+              routeFeedback.ok ? 'bg-[#DCFCE7] text-[#18181B]' : 'bg-[#FFE4E6] text-[#E11D48]'
             }`}
           >
-            {routeFeedback.ok ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertTriangle className="w-5 h-5 shrink-0" />}
+            {routeFeedback.ok ? <CheckCircle2 className="w-5 h-5 text-[#16A34A] shrink-0" /> : <AlertTriangle className="w-5 h-5 text-[#E11D48] shrink-0" />}
             <span>{routeFeedback.text}</span>
           </div>
         )}
@@ -518,7 +547,7 @@ export const MineralocorticoidLab: React.FC<Props> = ({
             <button
               type="button"
               onClick={onBackToMap}
-              className="rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-6 py-2.5 text-sm transition"
+              className="btn-tactile btn-tactile-emerald px-6 py-2.5 text-sm"
             >
               ذخیره سرنخ دوم (اهریمن موضعی است) و بازگشت ←
             </button>
@@ -527,7 +556,7 @@ export const MineralocorticoidLab: React.FC<Props> = ({
               type="button"
               disabled={routeLoading || assignedIds.length < 9}
               onClick={handleRouteSubmit}
-              className="rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-slate-950 font-bold px-6 py-2.5 text-sm transition"
+              className="btn-tactile btn-tactile-primary px-6 py-2.5 text-sm"
             >
               {routeLoading ? 'در حال بررسی...' : 'تایید دسته‌بندی و کشف سرنخ'}
             </button>
