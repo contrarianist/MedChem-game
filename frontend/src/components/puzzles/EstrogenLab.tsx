@@ -7,6 +7,9 @@ import {
   ArrowDown,
   ArrowUp,
   Siren,
+  FlaskConical,
+  RotateCcw,
+  Eraser,
 } from 'lucide-react';
 import { MoleculeStructureCard } from '../molecules/MoleculeStructureCard';
 import { SteroidSandbox } from '../molecules/SteroidSandbox';
@@ -84,9 +87,9 @@ const POTENCY_COMPOUNDS = [
   {
     id: '3',
     blindLabel: 'ترکیب ۳',
-    revealedName: 'دی‌اتیل‌استیل‌بسترول (DES)',
-    revealedNote: 'آگونیست غیراستروئیدی ترانس با بالاترین قدرت اثر',
-    smiles: 'CC/C(=C(/CC)c1ccc(O)cc1)c2ccc(O)cc2',
+    revealedName: 'دی‌ان‌استرول (Dienestrol)',
+    revealedNote: 'آگونیست غیراستروئیدی دی‌ان کونژوگه با دو پیوند دوگانه جانبی و بالاترین قدرت اثر',
+    smiles: 'C/C=C(/c1ccc(O)cc1)C(=C\\C)c2ccc(O)cc2',
   },
   {
     id: '4',
@@ -97,20 +100,9 @@ const POTENCY_COMPOUNDS = [
   },
 ];
 
-// ساختارهای مرجع گام ۵ خانم لارنس (تبدیل استروژن به کاتکول استروژن / کوئینون سرطان‌زا)
-const LAWRENCE_PARENT_ESTROGEN_SMILES = 'C[C@]12CC[C@H]3[C@@H](CCc4cc(O)ccc34)[C@@H]1CC[C@@H]2O';
 const LAWRENCE_CATECHOL_METABOLITE_SMILES = 'C[C@]12CC[C@H]3[C@@H](CCc4c(O)c(O)ccc34)[C@@H]1CC[C@@H]2O';
 
 const INITIAL_POTENCY_ORDER = deterministicShuffle(['1', '2', '3', '4'], 'est-potency-v3');
-
-const METABOLITE_OPTIONS = deterministicShuffle(
-  [
-    { id: 'promote_active_metabolite', label: 'افزایش تبدیل دارو به متابولیت فعال' },
-    { id: 'increase_parent_exposure', label: 'افزایش تماس با داروی اولیه بدون تغییر مسیر متابولیک' },
-    { id: 'prevent_active_metabolite', label: 'اصلاح ساختار برای جلوگیری از تشکیل متابولیت فعال سرطان‌زا' },
-  ],
-  'est-met-path-v3'
-);
 
 const DRUG_CLASS_FIELDS = [
   { key: 'serm', blindTitle: '۱) تعدیل‌کننده انتخابی گیرنده استروژن (SERM)', revealedTitle: '۱) SERM — آرزوکسیفن' },
@@ -148,6 +140,28 @@ const DRUG_CLASS_STRUCTURES = [
     revealedNote: 'مهارکننده غیراستروئیدی آروماتاز دارای سیانید (-C≡N)',
     smiles: 'N#Cc1ccc(cc1)C(c2ccc(C#N)cc2)n3cncn3',
   },
+];
+
+// ===== باکس تعاملی اصلاح حلقه A در گام ۵ (جلوگیری از تشکیل متابولیت کاتکول-کوئینون سرطان‌زا) =====
+type RingASpot = 'C2' | 'C3' | 'C4' | 'C17b';
+type RingATool = 'F' | 'OCH3' | 'OH' | 'CH3' | 'DEL';
+
+interface RingAState {
+  C2: 'H' | 'F' | 'OH' | 'CH3';
+  C3: 'OH' | 'OCH3' | 'H';
+  C4: 'H' | 'F' | 'OH' | 'CH3';
+  C17b: 'OH' | 'H';
+}
+
+const INITIAL_RING_A: RingAState = { C2: 'H', C3: 'OH', C4: 'H', C17b: 'OH' };
+const SOLVED_RING_A: RingAState = { C2: 'H', C3: 'OH', C4: 'F', C17b: 'OH' };
+
+const RING_A_TOOLS: { id: RingATool; label: string; formula: string }[] = [
+  { id: 'F', label: 'فلوئور (مسدودکننده متابولیک)', formula: '-F' },
+  { id: 'OCH3', label: 'متیل اتر (پوشش فنول)', formula: '-OCH3' },
+  { id: 'OH', label: 'هیدروکسیل', formula: '-OH' },
+  { id: 'CH3', label: 'متیل', formula: '-CH3' },
+  { id: 'DEL', label: 'پاک‌کن (حذف گروه)', formula: 'DEL' },
 ];
 
 export const EstrogenLab: React.FC<Props> = ({
@@ -190,7 +204,8 @@ export const EstrogenLab: React.FC<Props> = ({
   const [potencyFeedback, setPotencyFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [potencyLoading, setPotencyLoading] = useState(false);
 
-  const [angle, setAngle] = useState<number>(dockingSolved ? 180 : 0);
+  // گام ۴: هم‌ترازی واقعی و یکتا دقیقاً در زاویه ۳۱۵ درجه (در راستای Glu 353/Arg 394 تا His 524)
+  const [angle, setAngle] = useState<number>(dockingSolved ? 315 : 45);
   const [hasRotated, setHasRotated] = useState(dockingSolved);
   const [escapeSeconds, setEscapeSeconds] = useState(10);
   const [escapeStarted, setEscapeStarted] = useState(false);
@@ -198,9 +213,12 @@ export const EstrogenLab: React.FC<Props> = ({
   const [dockFeedback, setDockFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [dockLoading, setDockLoading] = useState(false);
 
-  const [metabolitePath, setMetabolitePath] = useState(
-    metaboliteSolved ? 'prevent_active_metabolite' : ''
+  // گام ۵: میز کار اصلاح حلقه A استروژن فنولیک
+  const [ringAState, setRingAState] = useState<RingAState>(
+    metaboliteSolved ? SOLVED_RING_A : INITIAL_RING_A
   );
+  const [selectedRingATool, setSelectedRingATool] = useState<RingATool | null>(null);
+  const [ringANotice, setRingANotice] = useState<string | null>(null);
   const metaboliteTimer = usePuzzleTimer(dockingSolved, metaboliteSolved);
   const [metaboliteFeedback, setMetaboliteFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [metaboliteLoading, setMetaboliteLoading] = useState(false);
@@ -320,13 +338,55 @@ export const EstrogenLab: React.FC<Props> = ({
     }
   };
 
+  const applyRingATool = (tool: RingATool, spot: RingASpot) => {
+    if (!dockingSolved || metaboliteSolved) return;
+    setRingANotice(null);
+    setRingAState((prev) => {
+      if (spot === 'C2') {
+        if (tool === 'DEL') return { ...prev, C2: 'H' };
+        if (tool === 'F' || tool === 'OH' || tool === 'CH3') return { ...prev, C2: tool };
+        setRingANotice('روی موقعیت ارتو C2 می‌توانید -F، -CH3، -OH یا پاک‌کن اعمال کنید.');
+        return prev;
+      }
+      if (spot === 'C4') {
+        if (tool === 'DEL') return { ...prev, C4: 'H' };
+        if (tool === 'F' || tool === 'OH' || tool === 'CH3') return { ...prev, C4: tool };
+        setRingANotice('روی موقعیت ارتو C4 می‌توانید -F، -CH3، -OH یا پاک‌کن اعمال کنید.');
+        return prev;
+      }
+      if (spot === 'C3') {
+        if (tool === 'DEL') return { ...prev, C3: 'H' };
+        if (tool === 'OH' || tool === 'OCH3') return { ...prev, C3: tool };
+        setRingANotice('روی کربن C3 می‌توانید -OH، -OCH3 یا پاک‌کن اعمال کنید.');
+        return prev;
+      }
+      if (spot === 'C17b') {
+        if (tool === 'DEL') return { ...prev, C17b: 'H' };
+        if (tool === 'OH') return { ...prev, C17b: 'OH' };
+        setRingANotice('روی موقعیت C17β گروه هیدروکسیل برای اتصال به گیرنده ضروری است.');
+        return prev;
+      }
+      return prev;
+    });
+  };
+
+  const evaluateRingAToken = (): string => {
+    if (ringAState.C17b !== 'OH') return 'broken_receptor_binding';
+    if (ringAState.C4 === 'OH' || ringAState.C2 === 'OH') return 'formed_catechol';
+    if (ringAState.C4 === 'F') return 'block_c4_fluorine';
+    if (ringAState.C2 === 'F') return 'block_c2_fluorine';
+    if (ringAState.C3 === 'OCH3') return 'methylate_c3_oh';
+    return 'unmodified_estrogen';
+  };
+
   const handleMetaboliteSubmit = async () => {
-    if (!dockingSolved || !metabolitePath) return;
+    if (!dockingSolved) return;
     setMetaboliteLoading(true);
     setMetaboliteFeedback(null);
+    const token = evaluateRingAToken();
     try {
       const elapsed = metaboliteTimer.consumeElapsedSeconds();
-      const res = await onSubmitPuzzle('active_metabolite_prevention', metabolitePath, elapsed);
+      const res = await onSubmitPuzzle('active_metabolite_prevention', token, elapsed);
       setMetaboliteFeedback({ ok: res.correct, text: res.feedback });
     } catch (err: unknown) {
       setMetaboliteFeedback({ ok: false, text: err instanceof Error ? err.message : 'ثبت پاسخ ناموفق بود.' });
@@ -353,32 +413,33 @@ export const EstrogenLab: React.FC<Props> = ({
     }
   };
 
-  const isAligned = angle % 360 === 180;
+  // فقط و فقط در زاویه ۳۱۵ درجه (هم‌ترازی دقیق مورب بین Glu 353/Arg 394 و His 524) سبز می‌شود
+  const isAligned = angle % 360 === 315;
 
   return (
     <div className="space-y-8">
-      <div className="rounded-2xl border border-cyan-500/30 bg-white dark:bg-slate-900/80 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+      <div className="lab-card p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-400 font-bold text-lg">
+          <div className="flex items-center gap-2 text-[#0D9488] font-heading font-bold text-lg">
             <Atom className="w-6 h-6" />
-            <span>🍯 اتاق ماه عسل — آزمایشگاه آقا و خانم لارنس (استروژن‌ها)</span>
+            <span>اتاق ماه عسل — آزمایشگاه آقا و خانم لارنس (استروژن‌ها)</span>
           </div>
-          <p className="text-slate-600 dark:text-slate-300 text-xs sm:text-sm mt-1 leading-6">
+          <p className="text-[#52525B] text-xs sm:text-sm mt-1 leading-6">
             آقا و خانم لارنس یک ساله داخل آزمایشگاه حیوانات روی تولید یه استروژن «فول‌شارژ» کار می‌کنن. حواست باشه توی دامشون نیفتی!
           </p>
         </div>
         <button
           type="button"
           onClick={onBackToMap}
-          className="self-start md:self-center rounded-xl border border-slate-300 dark:border-slate-600 hover:border-cyan-500 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 transition"
+          className="btn-tactile btn-tactile-surface self-start md:self-center px-4 py-2 text-xs"
         >
           بازگشت به نقشه کارخانه
         </button>
       </div>
 
-      {/* گام ۱: ورود به اتاق با جانمایی ساختارها و آنزیم‌ها */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/75 p-6 space-y-5 shadow-sm">
-        <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
+      {/* گام ۱: متابولیسم استروژن */}
+      <div className="lab-card p-6 space-y-5">
+        <h3 className="font-heading font-bold text-base text-[#18181B]">
           گام {toPersianDigits(1)}: برای ورود به اتاق، ساختارها و آنزیم‌های متابولیسم رو جای درستشون بذار
         </h3>
 
@@ -396,7 +457,7 @@ export const EstrogenLab: React.FC<Props> = ({
           ))}
         </div>
 
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#081220] p-5 space-y-6">
+        <div className="rounded-[8px] border-2 border-[#18181B] bg-[#EFECE6] p-5 space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               ['estradiol', 'استرادیول (Estradiol)'],
@@ -404,8 +465,8 @@ export const EstrogenLab: React.FC<Props> = ({
               ['estriol', 'استریول (Estriol)'],
               ['hydroxyestrone', '16α-هیدروکسی‌استرون'],
             ].map(([molecule, label]) => (
-              <label key={molecule} className="space-y-1 text-[11px] text-slate-700 dark:text-slate-300">
-                <span className="font-semibold block">کدام ساختار مربوط به {label} است؟</span>
+              <label key={molecule} className="space-y-1 text-[11px] text-[#18181B]">
+                <span className="font-bold block">کدام ساختار مربوط به {label} است؟</span>
                 <select
                   required
                   disabled={metabolismSolved}
@@ -416,7 +477,7 @@ export const EstrogenLab: React.FC<Props> = ({
                       [molecule]: event.target.value,
                     }))
                   }
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white"
+                  className="w-full rounded-[6px] border-2 border-[#18181B] bg-[#FFFFFF] px-3 py-2 text-xs text-[#18181B]"
                 >
                   <option value="">انتخاب شماره ساختار...</option>
                   {shuffledMetStructures.map((st) => (
@@ -430,11 +491,9 @@ export const EstrogenLab: React.FC<Props> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center text-center">
-            <div className="rounded-xl border border-cyan-500/40 bg-cyan-50/70 dark:bg-cyan-950/30 p-3">
-              <div className="font-bold text-cyan-800 dark:text-cyan-300 text-sm">استرادیول</div>
-            </div>
+            <div className="rounded-[6px] border-2 border-[#18181B] bg-[#FFFFFF] p-3 font-bold text-sm">استرادیول</div>
             <div>
-              <label className="block text-[11px] text-amber-700 dark:text-amber-300 font-semibold mb-1">
+              <label className="block text-[11px] text-[#18181B] font-bold mb-1">
                 آنزیم تبدیل برگشت‌پذیر استرادیول ⇄ استرون
               </label>
               <select
@@ -442,7 +501,7 @@ export const EstrogenLab: React.FC<Props> = ({
                 value={enzymes.top_horizontal}
                 onChange={(e) => setEnzymes((p) => ({ ...p, top_horizontal: e.target.value }))}
                 dir="ltr"
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white"
+                className="w-full rounded-[6px] border-2 border-[#18181B] bg-[#FFFFFF] px-3 py-2 text-xs font-mono text-[#18181B]"
               >
                 <option value="">انتخاب آنزیم...</option>
                 {ENZYME_OPTIONS.map((opt) => (
@@ -452,14 +511,12 @@ export const EstrogenLab: React.FC<Props> = ({
                 ))}
               </select>
             </div>
-            <div className="rounded-xl border border-purple-500/40 bg-purple-50/70 dark:bg-purple-950/30 p-3">
-              <div className="font-bold text-purple-800 dark:text-purple-300 text-sm">استرون</div>
-            </div>
+            <div className="rounded-[6px] border-2 border-[#18181B] bg-[#FFFFFF] p-3 font-bold text-sm">استرون</div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center text-center">
             <div>
-              <label className="block text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold mb-1">
+              <label className="block text-[11px] text-[#18181B] font-bold mb-1">
                 آنزیم مسیر استرادیول → استریول
               </label>
               <select
@@ -467,7 +524,7 @@ export const EstrogenLab: React.FC<Props> = ({
                 value={enzymes.left_vertical}
                 onChange={(e) => setEnzymes((p) => ({ ...p, left_vertical: e.target.value }))}
                 dir="ltr"
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white"
+                className="w-full rounded-[6px] border-2 border-[#18181B] bg-[#FFFFFF] px-3 py-2 text-xs font-mono text-[#18181B]"
               >
                 <option value="">انتخاب آنزیم...</option>
                 {ENZYME_OPTIONS.map((opt) => (
@@ -477,9 +534,9 @@ export const EstrogenLab: React.FC<Props> = ({
                 ))}
               </select>
             </div>
-            <div className="text-xs text-slate-500 font-mono">↓ مسیر تبدیل عمودی ↓</div>
+            <div className="text-xs text-[#52525B] font-mono">↓ مسیر تبدیل عمودی ↓</div>
             <div>
-              <label className="block text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold mb-1">
+              <label className="block text-[11px] text-[#18181B] font-bold mb-1">
                 آنزیم مسیر استرون → 16α-هیدروکسی‌استرون
               </label>
               <select
@@ -487,7 +544,7 @@ export const EstrogenLab: React.FC<Props> = ({
                 value={enzymes.right_vertical}
                 onChange={(e) => setEnzymes((p) => ({ ...p, right_vertical: e.target.value }))}
                 dir="ltr"
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white"
+                className="w-full rounded-[6px] border-2 border-[#18181B] bg-[#FFFFFF] px-3 py-2 text-xs font-mono text-[#18181B]"
               >
                 <option value="">انتخاب آنزیم...</option>
                 {ENZYME_OPTIONS.map((opt) => (
@@ -500,11 +557,9 @@ export const EstrogenLab: React.FC<Props> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center text-center">
-            <div className="rounded-xl border border-emerald-500/40 bg-emerald-50/70 dark:bg-emerald-950/30 p-3">
-              <div className="font-bold text-emerald-800 dark:text-emerald-300 text-sm">استریول</div>
-            </div>
+            <div className="rounded-[6px] border-2 border-[#18181B] bg-[#FFFFFF] p-3 font-bold text-sm">استریول</div>
             <div>
-              <label className="block text-[11px] text-amber-700 dark:text-amber-300 font-semibold mb-1">
+              <label className="block text-[11px] text-[#18181B] font-bold mb-1">
                 آنزیم تبدیل استریول ⇄ 16α-هیدروکسی‌استرون
               </label>
               <select
@@ -512,7 +567,7 @@ export const EstrogenLab: React.FC<Props> = ({
                 value={enzymes.bottom_horizontal}
                 onChange={(e) => setEnzymes((p) => ({ ...p, bottom_horizontal: e.target.value }))}
                 dir="ltr"
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white"
+                className="w-full rounded-[6px] border-2 border-[#18181B] bg-[#FFFFFF] px-3 py-2 text-xs font-mono text-[#18181B]"
               >
                 <option value="">انتخاب آنزیم...</option>
                 {ENZYME_OPTIONS.map((opt) => (
@@ -522,29 +577,25 @@ export const EstrogenLab: React.FC<Props> = ({
                 ))}
               </select>
             </div>
-            <div className="rounded-xl border border-amber-500/40 bg-amber-50/70 dark:bg-amber-950/30 p-3">
-              <div className="font-bold text-amber-800 dark:text-amber-300 text-sm">16α-هیدروکسی‌استرون</div>
-            </div>
+            <div className="rounded-[6px] border-2 border-[#18181B] bg-[#FFFFFF] p-3 font-bold text-sm">16α-هیدروکسی‌استرون</div>
           </div>
         </div>
 
         <ProgressiveHintBox
           solved={metabolismSolved}
           hints={[
-            'پسوند -diol یعنی دو گروه OH (ساختار ۱)، -one یعنی کتون C17=O (ساختار ۲) و -triol یعنی سه گروه OH (ساختار ۳).',
-            'تبدیل الکل و کتون C17 با Estradiol dehydrogenase و افزودن OH روی کربن ۱۶ با 16a-hydroxylase انجام می‌شود.',
+            'تعداد گروه‌های هیدروکسیل و وجود گروه کتون روی کربن C17 در هر ساختار را با پسوند نام‌ها (-diol، -one، -triol) تطبیق بده.',
+            'تبدیل برگشت‌پذیر الکل و کتون روی C17 توسط یک دهیدروژناز انجام می‌شود و افزودن هیدروکسیل روی کربن ۱۶ کار یک هیدروکسیلاز است.',
           ]}
         />
 
         {metFeedback && (
           <div
-            className={`rounded-xl border p-3 text-sm flex items-start gap-2 ${
-              metFeedback.ok
-                ? 'border-emerald-500/40 bg-emerald-950/85 text-emerald-200'
-                : 'border-rose-500/40 bg-rose-950/85 text-rose-200'
+            className={`rounded-[6px] border-2 border-[#18181B] p-3 text-sm font-bold flex items-start gap-2 ${
+              metFeedback.ok ? 'bg-[#DCFCE7] text-[#18181B]' : 'bg-[#FFE4E6] text-[#E11D48]'
             }`}
           >
-            {metFeedback.ok ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertTriangle className="w-5 h-5 shrink-0" />}
+            {metFeedback.ok ? <CheckCircle2 className="w-5 h-5 text-[#16A34A] shrink-0" /> : <AlertTriangle className="w-5 h-5 text-[#E11D48] shrink-0" />}
             <span>{metFeedback.text}</span>
           </div>
         )}
@@ -559,7 +610,7 @@ export const EstrogenLab: React.FC<Props> = ({
                 Object.values(structurePositions).some((value) => !value)
               }
               onClick={handleMetSubmit}
-              className="rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-slate-950 font-bold px-5 py-2.5 text-sm transition"
+              className="btn-tactile btn-tactile-primary px-5 py-2.5 text-sm"
             >
               {metLoading ? 'در حال بررسی...' : 'تایید و ورود به اتاق ماه عسل'}
             </button>
@@ -567,19 +618,17 @@ export const EstrogenLab: React.FC<Props> = ({
         )}
       </div>
 
-      {/* گام ۲: قفسه موش‌ها — ساخت فرم خوراکی و طولانی‌اثر با میز کار جامع */}
+      {/* گام ۲: فرم خوراکی و طولانی‌اثر */}
       <div
-        className={`rounded-2xl border p-6 space-y-4 transition ${
-          metabolismSolved
-            ? 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/75 shadow-sm'
-            : 'border-slate-200 dark:border-slate-800 opacity-60 pointer-events-none'
+        className={`lab-card p-6 space-y-4 transition ${
+          metabolismSolved ? '' : 'opacity-60 pointer-events-none'
         }`}
       >
-        <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
+        <h3 className="font-heading font-bold text-base text-[#18181B]">
           گام {toPersianDigits(2)}: قفسه موش‌ها — فرم خوراکی و طولانی‌اثر استروژن رو بساز
         </h3>
-        <p className="text-xs leading-6 text-slate-600 dark:text-slate-300">
-          به محض ورود چشمت به قفسه موش‌ها می‌افته که دارن یه دارویی می‌خورن؛ اما برای رد گم‌کنی، ماده‌ای که روی ویال کشیدن اصلاً خوراکی نیست! با جعبه‌ابزار آزاد، فرم <strong>خوراکی و طولانی‌اثرش</strong> رو بساز:
+        <p className="text-xs leading-6 text-[#52525B]">
+          به محض ورود چشمت به قفسه موش‌ها می‌افته که دارن یه دارویی می‌خورن؛ اما ماده‌ای که روی ویال کشیدن اصلاً خوراکی نیست! با جعبه‌ابزار آزاد، فرم <strong>خوراکی و طولانی‌اثرش</strong> رو بساز:
         </p>
 
         <SteroidSandbox
@@ -591,10 +640,8 @@ export const EstrogenLab: React.FC<Props> = ({
 
         {oralFeedback && (
           <div
-            className={`rounded-xl border p-3 text-sm ${
-              oralFeedback.ok
-                ? 'border-emerald-500/40 bg-emerald-950/85 text-emerald-200'
-                : 'border-rose-500/40 bg-rose-950/85 text-rose-200'
+            className={`rounded-[6px] border-2 border-[#18181B] p-3 text-sm font-bold ${
+              oralFeedback.ok ? 'bg-[#DCFCE7] text-[#18181B]' : 'bg-[#FFE4E6] text-[#E11D48]'
             }`}
           >
             {oralFeedback.text}
@@ -606,7 +653,7 @@ export const EstrogenLab: React.FC<Props> = ({
               type="button"
               disabled={!metabolismSolved || oralLoading || oralMods.length === 0}
               onClick={handleOralSubmit}
-              className="rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-40"
+              className="btn-tactile btn-tactile-primary px-5 py-2.5 text-sm"
             >
               {oralLoading ? 'در حال بررسی...' : 'ثبت ساختار ساخته‌شده'}
             </button>
@@ -614,18 +661,16 @@ export const EstrogenLab: React.FC<Props> = ({
         )}
       </div>
 
-      {/* گام ۳: قفل کامپیوتر لارنس‌ها */}
+      {/* گام ۳: رتبه‌بندی قدرت (با ساختار اصلاح‌شده Dienestrol برای ترکیب ۳) */}
       <div
-        className={`rounded-2xl border p-6 space-y-4 transition ${
-          oralDesignSolved
-            ? 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/75 shadow-sm'
-            : 'border-slate-200 dark:border-slate-800 opacity-60 pointer-events-none'
+        className={`lab-card p-6 space-y-4 transition ${
+          oralDesignSolved ? '' : 'opacity-60 pointer-events-none'
         }`}
       >
-        <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
+        <h3 className="font-heading font-bold text-base text-[#18181B]">
           گام {toPersianDigits(3)}: رمز کامپیوتر قفل‌شده — این ۴ مولکول رو بر اساس قدرت مرتب کن
         </h3>
-        <p className="text-xs leading-6 text-slate-600 dark:text-slate-300">
+        <p className="text-xs leading-6 text-[#52525B]">
           از قوی‌ترین (بالا) به ضعیف‌ترین (پایین) مرتب کن تا قفل کامپیوترشون باز بشه (دو ترکیب قدرت برابر دارند):
         </p>
         <div className="space-y-3">
@@ -634,10 +679,10 @@ export const EstrogenLab: React.FC<Props> = ({
             return (
               <div
                 key={id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#081220] p-3"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-[8px] border-2 border-[#18181B] bg-[#EFECE6] p-3"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 font-extrabold text-sm flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-[6px] border-2 border-[#18181B] bg-[#FFFFFF] text-[#0D9488] font-mono font-extrabold text-sm flex items-center justify-center shrink-0">
                     {toPersianDigits(index + 1)}
                   </div>
                   <div className="w-full sm:w-64">
@@ -658,7 +703,7 @@ export const EstrogenLab: React.FC<Props> = ({
                       disabled={!oralDesignSolved || index === 0}
                       onClick={() => movePotencyItem(index, -1)}
                       aria-label={`بالا بردن ترکیب ${id}`}
-                      className="rounded-lg border border-slate-300 dark:border-slate-700 p-2 text-slate-700 dark:text-slate-200 disabled:opacity-40"
+                      className="btn-tactile btn-tactile-surface p-2"
                     >
                       <ArrowUp className="h-4 w-4" />
                     </button>
@@ -667,7 +712,7 @@ export const EstrogenLab: React.FC<Props> = ({
                       disabled={!oralDesignSolved || index === potencyOrder.length - 1}
                       onClick={() => movePotencyItem(index, 1)}
                       aria-label={`پایین بردن ترکیب ${id}`}
-                      className="rounded-lg border border-slate-300 dark:border-slate-700 p-2 text-slate-700 dark:text-slate-200 disabled:opacity-40"
+                      className="btn-tactile btn-tactile-surface p-2"
                     >
                       <ArrowDown className="h-4 w-4" />
                     </button>
@@ -682,17 +727,15 @@ export const EstrogenLab: React.FC<Props> = ({
           solved={potencySolved}
           disabled={!oralDesignSolved}
           hints={[
-            'ترکیب غیراستروئیدی ترانس با دو حلقه فنولی بیشترین قدرت اتصال به گیرنده را دارد.',
-            'ترکیب دارای ۳ گروه OH (استریول) ضعیف‌ترین است و ترکیب ۱ و ۲ هم‌ترازند.',
+            'فاصله فضایی میان دو گروه فنولی و میزان قطبیت مولکول، میل اتصال به گیرنده استروژن را تعیین می‌کند.',
+            'آگونیست غیراستروئیدی با آرایش فضایی صلب بیشترین قدرت را دارد و افزایش تعداد گروه‌های هیدروکسیل قطبی قدرت اتصال را کاهش می‌دهد.',
           ]}
         />
 
         {potencyFeedback && (
           <div
-            className={`rounded-xl border p-3 text-sm ${
-              potencyFeedback.ok
-                ? 'border-emerald-500/40 bg-emerald-950/85 text-emerald-200'
-                : 'border-rose-500/40 bg-rose-950/85 text-rose-200'
+            className={`rounded-[6px] border-2 border-[#18181B] p-3 text-sm font-bold ${
+              potencyFeedback.ok ? 'bg-[#DCFCE7] text-[#18181B]' : 'bg-[#FFE4E6] text-[#E11D48]'
             }`}
           >
             {potencyFeedback.text}
@@ -704,7 +747,7 @@ export const EstrogenLab: React.FC<Props> = ({
               type="button"
               disabled={!oralDesignSolved || potencyLoading}
               onClick={handlePotencySubmit}
-              className="rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-40"
+              className="btn-tactile btn-tactile-primary px-5 py-2.5 text-sm"
             >
               {potencyLoading ? 'در حال بررسی...' : 'باز کردن قفل کامپیوتر'}
             </button>
@@ -712,51 +755,50 @@ export const EstrogenLab: React.FC<Props> = ({
         )}
       </div>
 
-      {/* گام ۴: لو رفتن توسط خانم لارنس + ۱۰ ثانیه فرار */}
+      {/* گام ۴: داکینگ در گیرنده — فقط در ۳۱۵ درجه هم‌تراز و سبز می‌شود */}
       <div
-        className={`rounded-2xl border p-6 space-y-6 transition ${
-          potencySolved
-            ? 'border-rose-500/40 bg-white dark:bg-slate-900/75 shadow-sm'
-            : 'border-slate-200 dark:border-slate-800 opacity-60 pointer-events-none'
+        className={`lab-card p-6 space-y-6 transition ${
+          potencySolved ? '' : 'opacity-60 pointer-events-none'
         }`}
       >
-        <div className="rounded-xl border border-rose-500/40 bg-rose-50/80 dark:bg-rose-950/30 p-4 flex items-start gap-3">
-          <Siren className="w-5 h-5 text-rose-500 shrink-0 mt-0.5 animate-pulse" />
-          <div className="text-xs sm:text-sm leading-6 text-rose-900 dark:text-rose-200">
+        <div className="rounded-[6px] border-2 border-[#18181B] bg-[#FFE4E6] p-4 flex items-start gap-3">
+          <Siren className="w-5 h-5 text-[#E11D48] shrink-0 mt-0.5" />
+          <div className="text-xs sm:text-sm leading-6 text-[#18181B]">
             <strong>اوه اوهههه! خانم لارنس بالا سر کامپیوترش دیدت — لو رفتی!</strong>
             <br />
-            فقط <strong>{toPersianDigits(10)} ثانیه</strong> وقت داری ساختار رو داخل رسپتور بچرخونی و قفل در رو باز کنی تا فرار کنی!
+            فقط <strong>{toPersianDigits(10)} ثانیه</strong> وقت داری ساختار رو داخل رسپتور بچرخونی تا دو سر هیدروکسیلش دقیقاً روبه‌روی آمینواسیدها قرار بگیرن و قفل در باز بشه!
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-          <div className="lg:col-span-6 rounded-2xl border border-slate-700 bg-[#07111f] p-4 flex flex-col items-center">
+          <div className="lg:col-span-6 rounded-[8px] border-2 border-[#18181B] molecule-dot-grid p-4 flex flex-col items-center">
             <div dir="ltr" className="w-full flex justify-center">
-              <svg viewBox="0 0 320 220" className="w-full max-w-[320px] h-52">
-                <rect x="12" y="130" width="76" height="28" rx="6" fill="#1e293b" stroke="#38bdf8" />
-                <text x="22" y="148" fill="#38bdf8" fontSize="11" fontWeight="bold">Glu 353 (COO⁻)</text>
+              <svg viewBox="0 0 320 220" className="w-full max-w-[320px] h-52 bg-transparent">
+                <rect x="12" y="132" width="84" height="28" rx="6" fill="#FFFFFF" stroke="#0D9488" strokeWidth="2" />
+                <text x="20" y="150" fill="#18181B" fontSize="10.5" fontWeight="bold" fontFamily="JetBrains Mono, monospace">Glu 353</text>
 
-                <rect x="115" y="182" width="90" height="28" rx="6" fill="#1e293b" stroke="#38bdf8" />
-                <text x="125" y="200" fill="#38bdf8" fontSize="11" fontWeight="bold">Arg 394 (NH₂⁺)</text>
+                <rect x="114" y="182" width="90" height="28" rx="6" fill="#FFFFFF" stroke="#0D9488" strokeWidth="2" />
+                <text x="126" y="200" fill="#18181B" fontSize="10.5" fontWeight="bold" fontFamily="JetBrains Mono, monospace">Arg 394</text>
 
-                <rect x="225" y="25" width="82" height="28" rx="6" fill="#1e293b" stroke="#c084fc" />
-                <text x="235" y="43" fill="#c084fc" fontSize="11" fontWeight="bold">His 524 (N-H)</text>
+                <rect x="224" y="22" width="84" height="28" rx="6" fill="#FFFFFF" stroke="#2563EB" strokeWidth="2" />
+                <text x="236" y="40" fill="#18181B" fontSize="10.5" fontWeight="bold" fontFamily="JetBrains Mono, monospace">His 524</text>
 
+                {/* پیوندهای هیدروژنی سبز فقط و فقط در زاویه ۳۱۵ درجه دقیقاً بین OH و آمینواسیدها */}
                 {isAligned && (
                   <>
-                    <line x1="88" y1="142" x2="115" y2="132" stroke="#34d399" strokeWidth="2.5" strokeDasharray="4,3" />
-                    <line x1="150" y1="182" x2="140" y2="152" stroke="#34d399" strokeWidth="2.5" strokeDasharray="4,3" />
-                    <line x1="225" y1="45" x2="198" y2="75" stroke="#34d399" strokeWidth="2.5" strokeDasharray="4,3" />
+                    <line x1="96" y1="148" x2="109" y2="159" stroke="#16A34A" strokeWidth="2.5" strokeDasharray="4,3" />
+                    <line x1="138" y1="182" x2="122" y2="167" stroke="#16A34A" strokeWidth="2.5" strokeDasharray="4,3" />
+                    <line x1="224" y1="45" x2="207" y2="62" stroke="#16A34A" strokeWidth="2.5" strokeDasharray="4,3" />
                   </>
                 )}
 
                 <g transform={`rotate(${angle} 160 110)`}>
-                  <line x1="145" y1="110" x2="175" y2="110" stroke="#f8fafc" strokeWidth="3" />
-                  <line x1="145" y1="115" x2="175" y2="115" stroke="#38bdf8" strokeWidth="2" />
-                  <polygon points="115,95 135,95 145,112 135,130 115,130 105,112" fill="none" stroke="#cbd5e1" strokeWidth="2" />
-                  <text x="80" y="116" fill="#f87171" fontSize="11" fontWeight="bold">HO</text>
-                  <polygon points="185,95 205,95 215,112 205,130 185,130 175,112" fill="none" stroke="#cbd5e1" strokeWidth="2" />
-                  <text x="219" y="116" fill="#f87171" fontSize="11" fontWeight="bold">OH</text>
+                  <line x1="145" y1="110" x2="175" y2="110" stroke="#18181B" strokeWidth="2.5" />
+                  <line x1="145" y1="115" x2="175" y2="115" stroke="#0D9488" strokeWidth="2" />
+                  <polygon points="115,95 135,95 145,112 135,130 115,130 105,112" fill="none" stroke="#18181B" strokeWidth="2" />
+                  <text x="79" y="116" fill="#E11D48" fontSize="11.5" fontWeight="bold" fontFamily="JetBrains Mono, monospace">HO</text>
+                  <polygon points="185,95 205,95 215,112 205,130 185,130 175,112" fill="none" stroke="#18181B" strokeWidth="2" />
+                  <text x="219" y="116" fill="#E11D48" fontSize="11.5" fontWeight="bold" fontFamily="JetBrains Mono, monospace">OH</text>
                 </g>
               </svg>
             </div>
@@ -770,15 +812,15 @@ export const EstrogenLab: React.FC<Props> = ({
                   setHasRotated(true);
                   setEscapeStarted(true);
                 }}
-                className="rounded-xl border border-cyan-500/40 bg-cyan-950/60 hover:bg-cyan-900/70 disabled:opacity-40 px-4 py-2 text-xs font-bold text-cyan-200 flex items-center gap-1.5"
+                className="btn-tactile btn-tactile-surface px-4 py-2 text-xs"
               >
-                <RotateCw className="w-4 h-4" /> چرخش {toPersianDigits(45)} درجه ({toPersianDigits(angle)}°)
+                <RotateCw className="w-4 h-4 text-[#0D9488]" /> چرخش {toPersianDigits(45)} درجه ({toPersianDigits(angle)}°)
               </button>
-              <span className={`text-xs font-bold ${isAligned ? 'text-emerald-400' : 'text-amber-400'}`}>
+              <span className={`text-xs font-extrabold ${isAligned ? 'text-[#16A34A]' : 'text-[#F59E0B]'}`}>
                 {isAligned ? 'هم‌تراز شد ✓' : 'بچرخون...'}
               </span>
             </div>
-            <div className="mt-3 text-xs text-rose-300" role="status" aria-live="polite">
+            <div className="mt-3 text-xs font-mono font-bold text-[#E11D48]" role="status" aria-live="polite">
               {escapeSeconds > 0
                 ? `مهلت فرار: ${toPersianDigits(escapeSeconds)} ثانیه`
                 : 'مهلت تمام شد! روی دکمه زیر بزن و دوباره سریع بچرخون.'}
@@ -787,12 +829,12 @@ export const EstrogenLab: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setAngle(0);
+                  setAngle(45);
                   setHasRotated(false);
                   setEscapeSeconds(10);
                   setEscapeStarted(false);
                 }}
-                className="mt-2 rounded-lg border border-rose-500/40 px-3 py-2 text-xs font-bold text-rose-200"
+                className="btn-tactile btn-tactile-crimson mt-2 px-3 py-1.5 text-xs"
               >
                 تلاش دوباره ({toPersianDigits(10)} ثانیه)
               </button>
@@ -800,11 +842,11 @@ export const EstrogenLab: React.FC<Props> = ({
           </div>
 
           <div className="lg:col-span-6 space-y-3">
-            <div className="text-xs leading-7 text-slate-600 dark:text-slate-300">
-              ساختار رو بچرخون تا دو طرفش با Glu 353، Arg 394 و His 524 پیوند هیدروژنی بده!
+            <div className="text-xs leading-7 text-[#52525B]">
+              ساختار رو بچرخون تا دو طرف هیدروکسیلش دقیقاً روبه‌روی <strong>Glu 353، Arg 394</strong> (پایین چپ) و <strong>His 524</strong> (بالا راست) قرار بگیره و پیوند هیدروژنی سبز برقرار بشه!
             </div>
             {dockingSolved && (
-              <div className="rounded-xl border border-amber-500/40 bg-amber-50/70 dark:bg-amber-950/25 p-4 text-xs leading-7 text-amber-900 dark:text-amber-200">
+              <div className="rounded-[6px] border-2 border-[#18181B] bg-[#FEF3C7] p-4 text-xs leading-7 text-[#18181B]">
                 <strong>پیچش داستانی!</strong> با اینکه درست وصل کردی، متاسفانه رمز خروج رو عوض کردن و گیر افتادی... اما نگران نباش، خانم لارنس حرف مهمی باهات داره!
               </div>
             )}
@@ -813,13 +855,11 @@ export const EstrogenLab: React.FC<Props> = ({
 
         {dockFeedback && (
           <div
-            className={`rounded-xl border p-3 text-sm flex items-start gap-2 ${
-              dockFeedback.ok
-                ? 'border-emerald-500/40 bg-emerald-950/85 text-emerald-200'
-                : 'border-rose-500/40 bg-rose-950/85 text-rose-200'
+            className={`rounded-[6px] border-2 border-[#18181B] p-3 text-sm font-bold flex items-start gap-2 ${
+              dockFeedback.ok ? 'bg-[#DCFCE7] text-[#18181B]' : 'bg-[#FFE4E6] text-[#E11D48]'
             }`}
           >
-            {dockFeedback.ok ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertTriangle className="w-5 h-5 shrink-0" />}
+            {dockFeedback.ok ? <CheckCircle2 className="w-5 h-5 text-[#16A34A] shrink-0" /> : <AlertTriangle className="w-5 h-5 text-[#E11D48] shrink-0" />}
             <span>{dockFeedback.text}</span>
           </div>
         )}
@@ -830,7 +870,7 @@ export const EstrogenLab: React.FC<Props> = ({
               type="button"
               disabled={!potencySolved || dockLoading || !hasRotated || escapeSeconds === 0}
               onClick={handleDockSubmit}
-              className="rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-slate-950 font-bold px-6 py-2.5 text-sm transition"
+              className="btn-tactile btn-tactile-primary px-6 py-2.5 text-sm"
             >
               {dockLoading ? 'در حال ثبت...' : 'ثبت اتصال و تلاش برای فرار'}
             </button>
@@ -838,57 +878,206 @@ export const EstrogenLab: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* گام ۵: معامله با خانم لارنس + نمایش ساختار متابولیت فعال سرطان‌زا */}
+      {/* گام ۵: میز کار تعاملی اصلاح ساختار استروژن فنولیک خانم لارنس */}
       <div
-        className={`rounded-2xl border p-6 space-y-4 transition ${
-          dockingSolved
-            ? 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/75 shadow-sm'
-            : 'border-slate-200 dark:border-slate-800 opacity-60 pointer-events-none'
+        className={`lab-card p-6 space-y-5 transition ${
+          dockingSolved ? '' : 'opacity-60 pointer-events-none'
         }`}
       >
-        <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
-          گام {toPersianDigits(5)}: گفت‌وگو با خانم لارنس و بررسی متابولیت فعال
-        </h3>
-        <div className="rounded-xl border border-pink-500/30 bg-pink-50/70 dark:bg-pink-950/20 p-3.5 text-xs leading-7 text-slate-700 dark:text-slate-200">
-          <strong>🔬 خانم لارنس:</strong> <em>«که اومدی اینجا جاسوسی کنی! باشه، من بهت کمک می‌کنم؛ چون ارول یه دارویی به من داد بخورم و باعث شد به سرطان مبتلا بشم... کمکم کن طوری تغییرش بدیم که به متابولیت فعالش تبدیل نشه.»</em>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <MoleculeStructureCard
-            smiles={LAWRENCE_PARENT_ESTROGEN_SMILES}
-            label="داروی اولیه (استروژن فنولیک)"
-            compact
-          />
-          <MoleculeStructureCard
-            smiles={LAWRENCE_CATECHOL_METABOLITE_SMILES}
-            label="متابولیت فعال کاتکول (۴-هیدروکسی — پیش‌ساز کوئینون آسیب‌زننده به DNA)"
-            compact
-          />
-        </div>
-
-        <div className="space-y-2">
-          {METABOLITE_OPTIONS.map((opt) => (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-heading font-bold text-base text-[#18181B] flex items-center gap-2">
+            <FlaskConical className="w-5 h-5 text-[#0D9488]" />
+            <span>گام {toPersianDigits(5)}: اصلاح ساختار داروی خانم لارنس برای جلوگیری از تشکیل متابولیت سرطان‌زا</span>
+          </h3>
+          {!metaboliteSolved && dockingSolved && (
             <button
-              key={opt.id}
               type="button"
-              disabled={!dockingSolved || metaboliteSolved}
-              onClick={() => setMetabolitePath(opt.id)}
-              className={`w-full text-right rounded-xl border p-3.5 text-xs sm:text-sm transition ${
-                metabolitePath === opt.id
-                  ? 'border-cyan-500 bg-cyan-500/15 text-cyan-900 dark:text-cyan-100 font-bold'
-                  : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#081220] text-slate-700 dark:text-slate-300'
-              }`}
+              onClick={() => {
+                setRingAState(INITIAL_RING_A);
+                setRingANotice(null);
+              }}
+              className="btn-tactile btn-tactile-surface px-3 py-1 text-xs"
             >
-              {opt.label}
+              <RotateCcw className="w-3.5 h-3.5" /> بازنشانی ساختار
             </button>
-          ))}
+          )}
         </div>
+
+        <div className="rounded-[6px] border-2 border-[#18181B] bg-[#EFECE6] p-3.5 text-xs leading-7 text-[#18181B]">
+          <strong>خانم لارنس:</strong> <em>«که اومدی اینجا جاسوسی کنی! باشه، من بهت کمک می‌کنم؛ چون ارول یه دارویی به من داد بخورم که توی بدن به متابولیت فعال کاتکول-کوئینون تبدیل می‌شه و باعث سرطان شد... خودت روی ساختار زیر تغییر لازم رو اعمال کن تا دیگه به اون متابولیت فعال تبدیل نشه!»</em>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          {/* بوم تعاملی اصلاح حلقه A */}
+          <div className="lg:col-span-7 space-y-3">
+            <div className="rounded-[8px] border-2 border-[#18181B] molecule-dot-grid p-4 flex flex-col items-center">
+              <div className="w-full flex items-center justify-between mb-2">
+                <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-[4px] border border-[#18181B] bg-[#EFECE6]">
+                  INTERACTIVE RING-A EDITOR
+                </span>
+                <span className="text-[11px] font-bold text-[#52525B]">
+                  روی نقاط خط‌چین (C2، C3، C4، C17β) کلیک کن
+                </span>
+              </div>
+
+              <div dir="ltr" className="w-full flex justify-center">
+                <svg viewBox="0 0 360 205" className="w-full max-w-[380px] h-48 bg-transparent">
+                  {/* Ring A (Aromatic) */}
+                  <polygon points="75,92 108,73 141,92 141,130 108,149 75,130" fill="rgba(13,148,136,0.08)" stroke="#18181B" strokeWidth="2" />
+                  <circle cx="108" cy="111" r="18" fill="none" stroke="#18181B" strokeWidth="2" />
+
+                  {/* Ring B, C, D */}
+                  <polygon points="141,92 174,73 207,92 207,130 174,149 141,130" fill="none" stroke="#18181B" strokeWidth="2" />
+                  <polygon points="174,73 174,35 207,16 240,35 240,73 207,92" fill="none" stroke="#18181B" strokeWidth="2" />
+                  <polygon points="240,35 276,24 298,54 276,84 240,73" fill="none" stroke="#18181B" strokeWidth="2" />
+
+                  {/* C2 substituent */}
+                  {ringAState.C2 !== 'H' && (
+                    <g>
+                      <line x1="75" y1="92" x2="50" y2="78" stroke={ringAState.C2 === 'F' ? '#0D9488' : '#18181B'} strokeWidth="2" />
+                      <text x="26" y="77" fill={ringAState.C2 === 'F' ? '#0D9488' : ringAState.C2 === 'OH' ? '#E11D48' : '#18181B'} fontSize="12" fontWeight="bold" fontFamily="JetBrains Mono, monospace">
+                        {ringAState.C2 === 'OH' ? 'HO' : ringAState.C2}
+                      </text>
+                    </g>
+                  )}
+
+                  {/* C3 substituent */}
+                  {ringAState.C3 !== 'H' && (
+                    <g>
+                      <line x1="75" y1="130" x2="48" y2="144" stroke="#18181B" strokeWidth="2" />
+                      <text x={ringAState.C3 === 'OCH3' ? '6' : '22'} y="152" fill="#E11D48" fontSize="11.5" fontWeight="bold" fontFamily="JetBrains Mono, monospace">
+                        {ringAState.C3 === 'OH' ? 'HO' : 'CH3O'}
+                      </text>
+                    </g>
+                  )}
+
+                  {/* C4 substituent */}
+                  {ringAState.C4 !== 'H' && (
+                    <g>
+                      <line x1="108" y1="149" x2="108" y2="176" stroke={ringAState.C4 === 'F' ? '#0D9488' : '#18181B'} strokeWidth="2" />
+                      <text x="102" y="191" fill={ringAState.C4 === 'F' ? '#0D9488' : ringAState.C4 === 'OH' ? '#E11D48' : '#18181B'} fontSize="12" fontWeight="bold" fontFamily="JetBrains Mono, monospace">
+                        {ringAState.C4}
+                      </text>
+                    </g>
+                  )}
+
+                  {/* C17β-OH */}
+                  {ringAState.C17b === 'OH' && (
+                    <g>
+                      <polygon points="276,24 302,10 306,16" fill="#18181B" />
+                      <text x="310" y="18" fill="#E11D48" fontSize="12" fontWeight="bold" fontFamily="JetBrains Mono, monospace">OH</text>
+                    </g>
+                  )}
+
+                  {/* Interactive Dashed Hotspots */}
+                  {!metaboliteSolved && dockingSolved && (
+                    <>
+                      {(
+                        [
+                          { id: 'C2' as const, cx: 65, cy: 86 },
+                          { id: 'C3' as const, cx: 63, cy: 137 },
+                          { id: 'C4' as const, cx: 108, cy: 162 },
+                          { id: 'C17b' as const, cx: 292, cy: 18 },
+                        ]
+                      ).map((spot) => (
+                        <g
+                          key={spot.id}
+                          onClick={() => {
+                            if (selectedRingATool) {
+                              applyRingATool(selectedRingATool, spot.id);
+                            } else {
+                              setRingANotice('ابتدا یک گروه یا ابزار را از پنل کنار انتخاب کن و سپس روی موقعیت هدف کلیک کن.');
+                            }
+                          }}
+                          className="cursor-pointer"
+                        >
+                          <circle
+                            cx={spot.cx}
+                            cy={spot.cy}
+                            r="13"
+                            fill="rgba(255,255,255,0.85)"
+                            stroke="#71717A"
+                            strokeWidth="2"
+                            strokeDasharray="4,3"
+                          />
+                          <text
+                            x={spot.cx}
+                            y={spot.cy + 3}
+                            textAnchor="middle"
+                            fill="#18181B"
+                            fontSize="7.5"
+                            fontWeight="bold"
+                            fontFamily="JetBrains Mono, monospace"
+                          >
+                            {spot.id}
+                          </text>
+                        </g>
+                      ))}
+                    </>
+                  )}
+                </svg>
+              </div>
+            </div>
+
+            {ringANotice && (
+              <div className="rounded-[6px] border-2 border-[#18181B] bg-[#FEF3C7] px-3 py-2 text-xs font-bold text-[#18181B]">
+                {ringANotice}
+              </div>
+            )}
+          </div>
+
+          {/* پنل ابزار + ساختار متابولیت سمی جهت مقایسه */}
+          <div className="lg:col-span-5 space-y-3">
+            <MoleculeStructureCard
+              smiles={LAWRENCE_CATECHOL_METABOLITE_SMILES}
+              label="متابولیت سمی که نباید تشکیل شود (کاتکول ۴-هیدروکسی)"
+              compact
+            />
+
+            {!metaboliteSolved && (
+              <div className="rounded-[8px] border-2 border-[#18181B] bg-[#EFECE6] p-3 space-y-2">
+                <div className="text-xs font-bold text-[#18181B]">ابزارهای اصلاح ساختار:</div>
+                <div className="space-y-1.5">
+                  {RING_A_TOOLS.map((t) => {
+                    const active = selectedRingATool === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setSelectedRingATool(active ? null : t.id)}
+                        className={`w-full rounded-[6px] border-2 border-[#18181B] px-3 py-1.5 text-xs font-bold flex items-center justify-between transition ${
+                          active ? 'bg-[#0D9488] text-white' : 'bg-[#FFFFFF] text-[#18181B] hover:bg-[#F7F5F0]'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          {t.id === 'DEL' && <Eraser className="w-3.5 h-3.5" />}
+                          <span>{t.label}</span>
+                        </span>
+                        <span dir="ltr" className="font-mono text-[10px] px-1.5 py-0.5 rounded-[4px] border border-[#18181B] bg-[#FFFFFF] text-[#18181B]">
+                          {t.formula}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <ProgressiveHintBox
+          solved={metaboliteSolved}
+          disabled={!dockingSolved}
+          hints={[
+            'متابولیت سرطان‌زا زمانی شکل می‌گیرد که آنزیم CYP1B1 روی موقعیت ارتو نسبت به گروه فنولی حلقه A هیدروکسیلاسیون انجام دهد و ساختار کاتکول بسازد.',
+            'برای جلوگیری از اکسیداسیون کاتکولی-کوئینونی، یا باید موقعیت ارتو را با یک اتم مقاوم به متابولیسم مسدود کنی یا خود گروه فنولی را بپوشانی (بدون آسیب به C17β-OH).',
+          ]}
+        />
+
         {metaboliteFeedback && (
           <div
-            className={`rounded-xl border p-3 text-sm ${
-              metaboliteFeedback.ok
-                ? 'border-emerald-500/40 bg-emerald-950/85 text-emerald-200'
-                : 'border-rose-500/40 bg-rose-950/85 text-rose-200'
+            className={`rounded-[6px] border-2 border-[#18181B] p-3 text-sm font-bold ${
+              metaboliteFeedback.ok ? 'bg-[#DCFCE7] text-[#18181B]' : 'bg-[#FFE4E6] text-[#E11D48]'
             }`}
           >
             {metaboliteFeedback.text}
@@ -898,29 +1087,27 @@ export const EstrogenLab: React.FC<Props> = ({
           <div className="flex justify-end">
             <button
               type="button"
-              disabled={!dockingSolved || metaboliteLoading || !metabolitePath}
+              disabled={!dockingSolved || metaboliteLoading}
               onClick={handleMetaboliteSubmit}
-              className="rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-40"
+              className="btn-tactile btn-tactile-primary px-5 py-2.5 text-sm"
             >
-              {metaboliteLoading ? 'در حال بررسی...' : 'کمک به خانم لارنس'}
+              {metaboliteLoading ? 'در حال بررسی ساختار...' : 'ثبت اصلاح ساختار برای خانم لارنس'}
             </button>
           </div>
         )}
       </div>
 
-      {/* گام ۶: پاداش خانم لارنس و کشف سرنخ سیانید */}
+      {/* گام ۶: دسته‌بندی ۴ دارو و کشف سرنخ سیانید */}
       <div
-        className={`rounded-2xl border p-6 space-y-5 transition ${
-          metaboliteSolved
-            ? 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-900/75 shadow-sm'
-            : 'border-slate-200 dark:border-slate-800 opacity-60 pointer-events-none'
+        className={`lab-card p-6 space-y-5 transition ${
+          metaboliteSolved ? '' : 'opacity-60 pointer-events-none'
         }`}
       >
-        <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
+        <h3 className="font-heading font-bold text-base text-[#18181B]">
           گام {toPersianDigits(6)}: وصل کردن ساختارها به دسته دارویی (پاداش خانم لارنس)
         </h3>
-        <p className="text-xs leading-6 text-slate-600 dark:text-slate-300">
-          <strong>🔬 خانم لارنس:</strong> <em>«دستت درد نکنه که کمکم کردی! منم در ازای لطفت بهت می‌گم این ساختارها رو به دسته داروییشون وصل کن و اونی که مربوط به مورد ۴ هست رو خوب یادت باشه...»</em>
+        <p className="text-xs leading-6 text-[#52525B]">
+          <strong>خانم لارنس:</strong> <em>«دستت درد نکنه که کمکم کردی! منم در ازای لطفت بهت می‌گم این ساختارها رو به دسته داروییشون وصل کن و اونی که مربوط به مورد ۴ هست رو خوب یادت باشه...»</em>
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -939,8 +1126,8 @@ export const EstrogenLab: React.FC<Props> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {DRUG_CLASS_FIELDS.map((field) => (
-            <label key={field.key} className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
-              <span className="font-semibold block">
+            <label key={field.key} className="space-y-1 text-xs text-[#18181B]">
+              <span className="font-bold block">
                 {classificationSolved ? field.revealedTitle : field.blindTitle}
               </span>
               <select
@@ -953,7 +1140,7 @@ export const EstrogenLab: React.FC<Props> = ({
                     [field.key]: event.target.value,
                   }))
                 }
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-900 dark:text-white"
+                className="w-full rounded-[6px] border-2 border-[#18181B] bg-[#FFFFFF] px-3 py-2 text-xs text-[#18181B]"
               >
                 <option value="">انتخاب ساختار...</option>
                 {shuffledDrugStructures.map((option) => (
@@ -970,17 +1157,15 @@ export const EstrogenLab: React.FC<Props> = ({
           solved={classificationSolved}
           disabled={!metaboliteSolved}
           hints={[
-            'مهارکننده استروئیدی آروماتاز هسته ۴حلقه‌ای دارد؛ مهارکننده غیراستروئیدی آروماتاز دارای حلقه تری‌آزول و دو گروه سیانید (-CN) است.',
-            'آنتی‌استروژن خالص زنجیره بسیار بلند فلوئوره دارد و SERM دارای داربست بنزوتیوفن است.',
+            'ابتدا ساختارهای دارای هسته چهارحلقه‌ای استروئیدی را از ساختارهای غیراستروئیدی جدا کن.',
+            'به ویژگی‌های کلیدی هر کلاس توجه کن: زنجیره بسیار بلند جانبی روی حلقه B، داربست هتروسیکلیک دارای گوگرد، و حضور حلقه آزول برای کلاته کردن آهن آروماتاز.',
           ]}
         />
 
         {classificationFeedback && (
           <div
-            className={`rounded-xl border p-3 text-sm ${
-              classificationFeedback.ok
-                ? 'border-emerald-500/40 bg-emerald-950/85 text-emerald-200'
-                : 'border-rose-500/40 bg-rose-950/85 text-rose-200'
+            className={`rounded-[6px] border-2 border-[#18181B] p-3 text-sm font-bold ${
+              classificationFeedback.ok ? 'bg-[#DCFCE7] text-[#18181B]' : 'bg-[#FFE4E6] text-[#E11D48]'
             }`}
           >
             {classificationFeedback.text}
@@ -996,7 +1181,7 @@ export const EstrogenLab: React.FC<Props> = ({
                 Object.values(classifications).some((value) => !value)
               }
               onClick={handleClassificationSubmit}
-              className="rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-bold text-slate-950 disabled:opacity-40"
+              className="btn-tactile btn-tactile-primary px-5 py-2.5 text-sm"
             >
               {classificationLoading ? 'در حال بررسی...' : 'ثبت دسته‌بندی و استخراج سرنخ سیانید'}
             </button>
@@ -1006,7 +1191,7 @@ export const EstrogenLab: React.FC<Props> = ({
             <button
               type="button"
               onClick={onBackToMap}
-              className="rounded-xl bg-emerald-500 px-6 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
+              className="btn-tactile btn-tactile-emerald px-6 py-2.5 text-sm"
             >
               ذخیره سرنخ سوم (سیانید) و بازگشت ←
             </button>
